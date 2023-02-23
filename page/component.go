@@ -11,13 +11,13 @@ import (
 	"github.com/jfyne/live"
 )
 
-// EventHandler for a component, only needs the params as the event is scoped to both the socket and then component
+// ComponentEventHandler for a component, only needs the params as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type EventHandler func(ctx context.Context, p live.Params) (any, error)
+type ComponentEventHandler func(ctx context.Context, p live.Params) (any, error)
 
-// SelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
+// ComponentSelfHandler for a component, only needs the data as the event is scoped to both the socket and then component
 // itself. Returns any component state that needs updating.
-type SelfHandler func(ctx context.Context, data any) (any, error)
+type ComponentSelfHandler func(ctx context.Context, data any) (any, error)
 
 // ComponentMount describes the needed function for mounting a component.
 type ComponentMount interface {
@@ -117,7 +117,7 @@ func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) e
 		if len(parts) < 2 {
 			continue
 		}
-		c.HandleEvent(eventName(parts), func(ctx context.Context, p live.Params) (any, error) {
+		c.handleEvent(eventName(parts), func(ctx context.Context, p live.Params) (any, error) {
 			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(p)})
 			switch len(res) {
 			case 0:
@@ -132,7 +132,7 @@ func (c *Component) register(ID string, h *live.Handler, s live.Socket, t any) e
 				return t, nil
 			}
 		})
-		c.HandleSelf(eventName(parts), func(ctx context.Context, data any) (any, error) {
+		c.handleSelf(eventName(parts), func(ctx context.Context, data any) (any, error) {
 			res := va.MethodByName(method.Name).Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(data)})
 			switch len(res) {
 			case 0:
@@ -177,7 +177,7 @@ func (c *Component) Self(ctx context.Context, event string, data any) error {
 }
 
 // HandleSelf handles scoped incoming events send by a components Self function.
-func (c *Component) HandleSelf(event string, handler SelfHandler) {
+func (c *Component) handleSelf(event string, handler ComponentSelfHandler) {
 	c.Handler.HandleSelf(c.Event(event), func(ctx context.Context, s live.Socket, d any) (any, error) {
 		_, err := handler(ctx, d)
 		if err != nil {
@@ -189,7 +189,7 @@ func (c *Component) HandleSelf(event string, handler SelfHandler) {
 }
 
 // HandleEvent handles a component event sent from a connected socket.
-func (c *Component) HandleEvent(event string, handler EventHandler) {
+func (c *Component) handleEvent(event string, handler ComponentEventHandler) {
 	c.Handler.HandleEvent(c.Event(event), func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
 		_, err := handler(ctx, p)
 		if err != nil {
@@ -201,7 +201,7 @@ func (c *Component) HandleEvent(event string, handler EventHandler) {
 }
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific component.
-func (c *Component) HandleParams(handler EventHandler) {
+func (c *Component) handleParams(handler ComponentEventHandler) {
 	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (any, error) {
 		_, err := handler(ctx, p)
 		if err != nil {
