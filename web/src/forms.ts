@@ -41,6 +41,10 @@ export class Forms {
                 return;
             }
 
+            if (f.hasAttribute("live-no-state")) {
+                return;
+            }
+
             this.formState[f.id] = [];
             new FormData(f).forEach((value: any, name: string) => {
                 const i = {
@@ -63,6 +67,10 @@ export class Forms {
             const form = document.querySelector(`#${formID}`);
             if (form === null) {
                 delete this.formState[formID];
+                return;
+            }
+
+            if (form.hasAttribute("live-no-state")) {
                 return;
             }
 
