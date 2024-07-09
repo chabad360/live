@@ -19,6 +19,18 @@ var _ Socket = &BaseSocket{}
 
 type SocketID string
 
+// Child is a component that should receive events from a parent Engine.
+type Child interface {
+	// ID returns the ID of this child.
+	ID() string
+
+	// CallEvent route a client event to the correct handler.
+	CallEvent(ctx context.Context, t string, sock Socket, msg Params) error
+
+	// CallSelf route a server event to the correct handler.
+	CallSelf(ctx context.Context, t string, sock Socket, msg Event) error
+}
+
 // Socket describes a connected user, and the state that they
 // are in.
 type Socket interface {
@@ -65,6 +77,16 @@ type Socket interface {
 	Session() Session
 	// Messages returns the channel of events on this socket.
 	Messages() chan Event
+
+	// AttachChild attaches a child to this engine.
+	AttachChild(child Child)
+	// GetChildren returns the children of this Socket.
+	GetChildren() []Child
+
+	// Lock the data mutex.
+	Lock()
+	// Unlock the data mutex.
+	Unlock()
 }
 
 // BaseSocket describes a socket from the outside.
@@ -84,6 +106,9 @@ type BaseSocket struct {
 	data   interface{}
 	dataMu sync.Mutex
 	selfMu sync.Mutex
+
+	// Child components.
+	children []Child
 }
 
 // NewBaseSocket creates a new default socket.
@@ -245,3 +270,19 @@ func (s *BaseSocket) Session() Session {
 func (s *BaseSocket) Messages() chan Event {
 	return s.msgs
 }
+
+// AttachChild attaches a child to this socket.
+func (s *BaseSocket) AttachChild(child Child) {
+	s.children = append(s.children, child)
+}
+
+// GetChildren returns the children of this socket.
+func (s *BaseSocket) GetChildren() []Child {
+	return s.children
+}
+
+// Lock the data mutex.
+func (s *BaseSocket) Lock() { s.selfMu.Lock() }
+
+// Unlock the data mutex.
+func (s *BaseSocket) Unlock() { s.selfMu.Unlock() }

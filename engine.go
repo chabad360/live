@@ -2,6 +2,7 @@ package live
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -26,7 +27,7 @@ type Engine interface {
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
 	Mount() MountHandler
-	// UnmountHandler the func that is called by a handler to report that a connection
+	// Unmount the func that is called by a handler to report that a connection
 	// is closed. This is called on websocket close. Can be used to track number of
 	// connected users.
 	Unmount() UnmountHandler
@@ -63,7 +64,7 @@ type BaseEngine struct {
 	// handler implements all the developer defined logic.
 	handler Handler
 
-	// broadcastLimiter limit broadcast ratehandler.
+	// broadcastLimiter limit broadcast rate handler.
 	broadcastLimiter *rate.Limiter
 	// broadcast handle a broadcast.
 	broadcastHandler BroadcastHandler
@@ -82,7 +83,7 @@ type BaseEngine struct {
 	MaxUploadSize int64
 
 	// UploadStagingLocation where uploads are stored before they are consumed. This defaults
-	// too the default OS temp directory.
+	// to the default OS temp directory.
 	UploadStagingLocation string
 }
 
@@ -157,6 +158,8 @@ func (e *BaseEngine) handleEmittedEvent(ctx context.Context, s Socket, msg Event
 	if err := e.handleSelf(ctx, msg.T, s, msg); err != nil {
 		log.Println("server event error", err)
 	}
+	s.Lock()
+	defer s.Unlock()
 	render, err := RenderSocket(ctx, e, s)
 	if err != nil {
 		log.Println("socket handleView error", err)
@@ -196,14 +199,30 @@ func (e *BaseEngine) DeleteSocket(sock Socket) {
 
 // CallEvent route an event to the correct handler.
 func (e *BaseEngine) CallEvent(ctx context.Context, t string, sock Socket, msg Event) error {
-	handler, err := e.handler.getEvent(t)
-	if err != nil {
-		return err
-	}
-
 	params, err := msg.Params()
 	if err != nil {
 		return fmt.Errorf("received message and could not extract params: %w", err)
+	}
+
+	hasHandler := false
+	if children := sock.GetChildren(); len(children) > 0 {
+		for _, child := range children {
+			if err := child.CallEvent(ctx, t, sock, params); err != nil {
+				if !errors.Is(err, ErrNoEventHandler) {
+					return err
+				}
+				continue
+			}
+			hasHandler = true
+		}
+	}
+
+	handler, err := e.handler.getEvent(t)
+	if err != nil {
+		if hasHandler {
+			return nil
+		}
+		return err
 	}
 
 	data, err := handler(ctx, sock, params)
@@ -220,9 +239,25 @@ func (e *BaseEngine) handleSelf(ctx context.Context, t string, sock Socket, msg 
 	e.eventMu.Lock()
 	defer e.eventMu.Unlock()
 
+	hasHandler := false
+	if children := sock.GetChildren(); len(children) > 0 {
+		for _, child := range children {
+			if err := child.CallSelf(ctx, t, sock, msg); err != nil {
+				if !errors.Is(err, ErrNoEventHandler) {
+					return err
+				}
+				continue
+			}
+			hasHandler = true
+		}
+	}
+
 	handler, err := e.handler.getSelf(t)
 	if err != nil {
-		return fmt.Errorf("no self event handler for %s: %w", t, ErrNoEventHandler)
+		if hasHandler {
+			return nil
+		}
+		return err
 	}
 
 	data, err := handler(ctx, sock, msg.SelfData)
