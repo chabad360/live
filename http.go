@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -336,6 +337,12 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 
 	// Handle events coming from the websocket connection.
 	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				internalErrors <- fmt.Errorf("live: panic serving %v: %v\n%s", r.RemoteAddr, err, debug.Stack())
+			}
+		}()
+
 		for {
 			t, d, err := c.Read(ctx)
 			if err != nil {
@@ -429,9 +436,9 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 			}
 		case err := <-internalErrors:
 			if err != nil {
-				d, err := json.Marshal(err.Error())
-				if err != nil {
-					return fmt.Errorf("writing to socket error: %w", err)
+				d, err1 := json.Marshal(err.Error())
+				if err1 != nil {
+					return fmt.Errorf("writing to socket error: %w", err1)
 				}
 				if err := writeTimeout(ctx, time.Second*5, c, Event{T: EventError, Data: d}); err != nil {
 					return fmt.Errorf("writing to socket error: %w", err)
