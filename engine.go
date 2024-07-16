@@ -155,6 +155,8 @@ func (e *BaseEngine) self(ctx context.Context, sock Socket, msg Event) {
 }
 
 func (e *BaseEngine) handleEmittedEvent(ctx context.Context, s Socket, msg Event) {
+	defer panicCatcher()
+
 	if err := e.handleSelf(ctx, msg.T, s, msg); err != nil {
 		log.Println("server event error", err)
 	}

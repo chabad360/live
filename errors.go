@@ -1,6 +1,10 @@
 package live
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"runtime/debug"
+)
 
 // ErrNoRenderer returned when no renderer has been set on the handler.
 var ErrNoRenderer = errors.New("no renderer has been set on the handler")
@@ -16,3 +20,10 @@ var ErrNoSocket = errors.New("no socket")
 
 // ErrNotImplemented returned when an interface has not been implemented correctly.
 var ErrNotImplemented = errors.New("not implemented")
+
+func panicCatcher() {
+	if err := recover(); err != nil {
+		fmt.Println("Panic caught:", err)
+		fmt.Println("Stack trace:", string(debug.Stack()))
+	}
+}

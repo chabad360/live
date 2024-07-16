@@ -154,6 +154,7 @@ func (s *BaseSocket) Connected() bool {
 // Self sends an event to this socket itself. Will be handled in the
 // handlers HandleSelf function.
 func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
+	defer panicCatcher()
 	s.selfMu.Lock()
 	defer s.selfMu.Unlock()
 	msg := Event{T: event, SelfData: data}
