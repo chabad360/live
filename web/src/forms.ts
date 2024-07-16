@@ -105,6 +105,20 @@ export class Forms {
      * serialize form to values.
      */
     static serialize(form: HTMLFormElement): { [key: string]: string | number | fileInput } {
+        // if the form requests it, run a custom serializer.
+        if (form.hasAttribute("live-serialize")) {
+            const fn = form.getAttribute("live-serialize");
+            if (fn === null) {
+                throw new Error("live-serialize attribute is empty");
+            }
+            // @ts-ignore
+            const f = window[fn];
+            if (typeof f !== "function") {
+                throw new Error("live-serialize attribute is not a function");
+            }
+            return f(form);
+        }
+
         const values: { [key: string]: any } = {};
         const formData = new FormData(form);
         formData.forEach((value, key) => {
