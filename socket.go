@@ -65,6 +65,11 @@ type Socket interface {
 	Session() Session
 	// Messages returns the channel of events on this socket.
 	Messages() chan Event
+
+	// Lock the data mutex.
+	Lock()
+	// Unlock the data mutex.
+	Unlock()
 }
 
 // BaseSocket describes a socket from the outside.
@@ -245,3 +250,9 @@ func (s *BaseSocket) Session() Session {
 func (s *BaseSocket) Messages() chan Event {
 	return s.msgs
 }
+
+// Lock the data mutex.
+func (s *BaseSocket) Lock() { s.selfMu.Lock() }
+
+// Unlock the data mutex.
+func (s *BaseSocket) Unlock() { s.selfMu.Unlock() }

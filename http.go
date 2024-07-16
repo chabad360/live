@@ -136,6 +136,8 @@ func (h *HttpEngine) post(ctx context.Context, w http.ResponseWriter, r *http.Re
 			sock.AssignUpload(config.Name, u)
 			handleFileUpload(h, sock, config, u, uploadDir, fileHeader)
 
+			sock.Lock()
+			defer sock.Unlock()
 			render, err := RenderSocket(ctx, h, sock)
 			if err != nil {
 				h.Error()(ctx, err)

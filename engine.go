@@ -157,6 +157,8 @@ func (e *BaseEngine) handleEmittedEvent(ctx context.Context, s Socket, msg Event
 	if err := e.handleSelf(ctx, msg.T, s, msg); err != nil {
 		log.Println("server event error", err)
 	}
+	s.Lock()
+	defer s.Unlock()
 	render, err := RenderSocket(ctx, e, s)
 	if err != nil {
 		log.Println("socket handleView error", err)
