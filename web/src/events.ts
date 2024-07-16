@@ -26,16 +26,15 @@ class LiveHandler {
                 if (this.isWired(element) == true) {
                     return;
                 }
-                const params = GetParams(element as HTMLElement);
                 element.addEventListener(this.event, (e) => {
                     if (this.limiter.hasDebounce(element)) {
                         this.limiter.debounce(
                             element,
                             e,
-                            this.handler(element as HTMLFormElement, params)
+                            this.handler(element as HTMLFormElement, GetParams(element as HTMLElement))
                         );
                     } else {
-                        this.handler(element as HTMLFormElement, params)(e);
+                        this.handler(element as HTMLFormElement, GetParams(element as HTMLElement))(e);
                     }
                 });
                 element.addEventListener("ack", (_) => {
@@ -51,10 +50,9 @@ class LiveHandler {
                 if (this.isWired(element) === true) {
                     return;
                 }
-                const params = GetParams(element as HTMLElement);
                 window.addEventListener(
                     this.event,
-                    this.handler(element as HTMLElement, params)
+                    this.handler(element as HTMLElement, GetParams(element as HTMLElement))
                 );
                 window.addEventListener("ack", (_) => {
                     element.classList.remove(`${this.attribute}-loading`);
