@@ -11,18 +11,18 @@ import (
 
 // RegisterHandler the first part of the component lifecycle, this is called during component creation
 // and is used to register any events that the component handles.
-type RegisterHandler func(c *Component) error
+type RegisterHandler[T any] func(c *Component[T]) error
 
 // MountHandler the components mount function called on first GET request and again when the socket connects.
-type MountHandler func(ctx context.Context, c *Component) error
+type MountHandler[T any] func(ctx context.Context, c *Component[T]) error
 
 // RenderHandler ths component.
-type RenderHandler func(w io.Writer, c *Component) error
+type RenderHandler[T any] func(w io.Writer, c *Component[T]) error
 
 // ComponentConstructor a func for creating a new component.
-type ComponentConstructor func(ctx context.Context, h live.Handler, s live.Socket) (*Component, error)
+type ComponentConstructor[T any] func(ctx context.Context, h live.Handler, s live.Socket) (*Component[T], error)
 
-var _ live.Child = &Component{}
+var _ live.Child = &Component[any]{}
 
 // Component is a self-contained component on the page. Components can be reused across the application
 // or used to compose complex interfaces by splitting events handlers and render logic into
@@ -30,7 +30,7 @@ var _ live.Child = &Component{}
 //
 // Remember to use a unique ID and use the Event function which scopes the event-name
 // to trigger the event in the right component.
-type Component struct {
+type Component[T any] struct {
 	// id identifies the component on the page. This should be something stable, so that during the mount
 	// it can be found again by the socket.
 	// When reusing the same component this id should be unique to avoid conflicts.
@@ -44,42 +44,42 @@ type Component struct {
 	Socket live.Socket
 
 	// Register the component. This should be used to setup event handling.
-	Register RegisterHandler
+	Register RegisterHandler[T]
 
 	// Mount the component, this should be used to setup the components initial state.
-	Mount MountHandler
+	Mount MountHandler[T]
 
 	// Render the component, this should be used to describe how to render the component.
-	Render RenderHandler
+	Render RenderHandler[T]
 
 	// State the components state.
-	State interface{}
+	State T
 
 	// Any uploads.
 	Uploads live.UploadContext
 
 	// eventHandlers the map of client event handlers for this component.
-	eventHandlers map[string]live.EventHandler
+	eventHandlers map[string]live.EventHandler[T]
 	// selfHandlers the map of handler event handlers for this component.
-	selfHandlers map[string]live.SelfHandler
+	selfHandlers map[string]live.SelfHandler[T]
 }
 
 // NewComponent creates a new component and returns it. It does not register it or mount it.
-func NewComponent(ID string, h live.Handler, s live.Socket, configurations ...ComponentConfig) (*Component, error) {
-	c := &Component{
+func NewComponent[T any](ID string, h live.Handler, s live.Socket, configurations ...ComponentConfig[T]) (*Component[T], error) {
+	c := &Component[T]{
 		id:       ID,
 		Handler:  h,
 		Socket:   s,
-		Register: defaultRegister,
-		Mount:    defaultMount,
-		Render:   defaultRender,
+		Register: defaultRegister[T],
+		Mount:    defaultMount[T],
+		Render:   defaultRender[T],
 
-		eventHandlers: make(map[string]live.EventHandler),
-		selfHandlers:  make(map[string]live.SelfHandler),
+		eventHandlers: make(map[string]live.EventHandler[T]),
+		selfHandlers:  make(map[string]live.SelfHandler[T]),
 	}
 	for _, conf := range configurations {
 		if err := conf(c); err != nil {
-			return &Component{}, err
+			return &Component[T]{}, err
 		}
 	}
 
@@ -89,7 +89,7 @@ func NewComponent(ID string, h live.Handler, s live.Socket, configurations ...Co
 }
 
 // Init takes a constructor and then registers and mounts the component.
-func Init(ctx context.Context, construct func() (*Component, error)) (*Component, error) {
+func Init[T any](ctx context.Context, construct func() (*Component[T], error)) (*Component[T], error) {
 	comp, err := construct()
 	if err != nil {
 		return nil, fmt.Errorf("could not install component on construct: %w", err)
@@ -103,8 +103,12 @@ func Init(ctx context.Context, construct func() (*Component, error)) (*Component
 	return comp, nil
 }
 
+func (c *Component[T]) GetState() any {
+	return c.State
+}
+
 // ID returns the components ID.
-func (c *Component) ID() string {
+func (c *Component[T]) ID() string {
 	return c.id
 }
 
@@ -115,17 +119,18 @@ func (c *Component) Self(ctx context.Context, s live.Socket, event string, data 
 }
 
 // HandleSelf handles scoped incoming events from the server.
-func (c *Component) HandleSelf(event string, handler live.SelfHandler) {
+func (c *Component[T]) HandleSelf(event string, handler live.SelfHandler[T]) {
 	c.selfHandlers[event] = handler
+	c.selfHandlers[c.Event(event)] = handler
 }
 
 // HandleEvent handles a component event sent from the client.
-func (c *Component) HandleEvent(event string, handler live.EventHandler) {
+func (c *Component[T]) HandleEvent(event string, handler live.EventHandler[T]) {
 	c.eventHandlers[event] = handler
 }
 
 // HandleParams handles parameter changes. Caution these handlers are not scoped to a specific Component.
-func (c *Component) HandleParams(handler live.EventHandler) {
+func (c *Component[T]) HandleParams(handler live.EventHandler[T]) {
 	c.Handler.HandleParams(func(ctx context.Context, s live.Socket, p live.Params) (interface{}, error) {
 		state, err := handler(ctx, s, p)
 		if err != nil {
@@ -137,14 +142,14 @@ func (c *Component) HandleParams(handler live.EventHandler) {
 }
 
 // Event scopes an event string so that it applies only to a Component with the same ID.
-func (c *Component) Event(event string) string {
+func (c *Component[T]) Event(event string) string {
 	return c.id + "--" + event
 }
 
-func (c *Component) CallSelf(ctx context.Context, event string, s live.Socket, data live.Event) error {
+func (c *Component[T]) CallSelf(ctx context.Context, event string, s live.Socket, data live.Event) error {
 	handler := c.selfHandlers[event]
 	if handler == nil {
-		return fmt.Errorf("no self handler on component %s for %s: %w", c.ID, event, live.ErrNoEventHandler)
+		return fmt.Errorf("no self handler on component %q for %q: %w", c.id, event, live.ErrNoEventHandler)
 	}
 	state, err := handler(ctx, c.Socket, data.SelfData)
 	if err != nil {
@@ -154,10 +159,10 @@ func (c *Component) CallSelf(ctx context.Context, event string, s live.Socket, d
 	return nil
 }
 
-func (c *Component) CallEvent(ctx context.Context, event string, s live.Socket, data live.Params) error {
+func (c *Component[T]) CallEvent(ctx context.Context, event string, s live.Socket, data live.Params) error {
 	handler := c.eventHandlers[event]
 	if handler == nil {
-		return fmt.Errorf("no event handler on component %s for %s: %w", c.ID, event, live.ErrNoEventHandler)
+		return fmt.Errorf("no event handler on component %q for %q: %w", c.id, event, live.ErrNoEventHandler)
 	}
 	state, err := handler(ctx, c.Socket, data)
 	if err != nil {
@@ -168,7 +173,7 @@ func (c *Component) CallEvent(ctx context.Context, event string, s live.Socket, 
 }
 
 // String renders the component to a string.
-func (c *Component) String() string {
+func (c *Component[T]) String() string {
 	var buf bytes.Buffer
 	if err := c.Render(&buf, c); err != nil {
 		return fmt.Sprintf("template rendering failed: %s", err)
@@ -177,21 +182,21 @@ func (c *Component) String() string {
 }
 
 // defaultRegister is the default register handler which does nothing.
-func defaultRegister(c *Component) error {
+func defaultRegister[T any](c *Component[T]) error {
 	return nil
 }
 
 // defaultMount is the default mount handler which does nothing.
-func defaultMount(ctx context.Context, c *Component) error {
+func defaultMount[T any](ctx context.Context, c *Component[T]) error {
 	return nil
 }
 
 // defaultRender is the default render handler which does nothing.
-func defaultRender(w io.Writer, c *Component) error {
+func defaultRender[T any](w io.Writer, c *Component[T]) error {
 	_, err := w.Write([]byte(fmt.Sprintf("%+v", c.State)))
 	return err
 }
 
-var _ RegisterHandler = defaultRegister
-var _ MountHandler = defaultMount
-var _ RenderHandler = defaultRender
+var _ RegisterHandler[any] = defaultRegister[any]
+var _ MountHandler[any] = defaultMount[any]
+var _ RenderHandler[any] = defaultRender[any]

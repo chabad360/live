@@ -10,34 +10,34 @@ import (
 )
 
 // ComponentConfig configures a component.
-type ComponentConfig func(c *Component) error
+type ComponentConfig[T any] func(c *Component[T]) error
 
 // WithRegister set a register handler on the component.
-func WithRegister(fn RegisterHandler) ComponentConfig {
-	return func(c *Component) error {
+func WithRegister[T any](fn RegisterHandler[T]) ComponentConfig[T] {
+	return func(c *Component[T]) error {
 		c.Register = fn
 		return nil
 	}
 }
 
 // WithMount set a mount handler on the component.
-func WithMount(fn MountHandler) ComponentConfig {
-	return func(c *Component) error {
+func WithMount[T any](fn MountHandler[T]) ComponentConfig[T] {
+	return func(c *Component[T]) error {
 		c.Mount = fn
 		return nil
 	}
 }
 
 // WithRender set a render handler on the component.
-func WithRender(fn RenderHandler) ComponentConfig {
-	return func(c *Component) error {
+func WithRender[T any](fn RenderHandler[T]) ComponentConfig[T] {
+	return func(c *Component[T]) error {
 		c.Render = fn
 		return nil
 	}
 }
 
 // WithComponentMount set the live.Handler to mount the root component.
-func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
+func WithComponentMount[T any](construct ComponentConstructor[T]) live.HandlerConfig {
 	return func(h live.Handler) error {
 		h.HandleMount(func(ctx context.Context, s live.Socket) (interface{}, error) {
 			root, err := construct(ctx, h, s)
@@ -59,10 +59,10 @@ func WithComponentMount(construct ComponentConstructor) live.HandlerConfig {
 }
 
 // WithComponentRenderer set the live.Handler to use a root component to render.
-func WithComponentRenderer() live.HandlerConfig {
+func WithComponentRenderer[T any]() live.HandlerConfig {
 	return func(h live.Handler) error {
 		h.HandleRender(func(_ context.Context, data *live.RenderContext) (io.Reader, error) {
-			c, ok := data.Assigns.(*Component)
+			c, ok := data.Assigns.(*Component[T])
 			if !ok {
 				return nil, fmt.Errorf("root render data is not a component")
 			}

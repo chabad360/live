@@ -29,6 +29,12 @@ type Child interface {
 
 	// CallSelf route a server event to the correct handler.
 	CallSelf(ctx context.Context, t string, sock Socket, msg Event) error
+
+	// GetState returns the current state of this child.
+	GetState() any
+
+	// Event returns a scoped event string.
+	Event(event string) string
 }
 
 // Socket describes a connected user, and the state that they

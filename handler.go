@@ -16,7 +16,7 @@ type HandlerConfig func(h Handler) error
 // be rendered in a template. This is called on first GET and then later when
 // the web socket first connects. It should return the state to be maintained
 // in the socket.
-type MountHandler func(ctx context.Context, c Socket) (interface{}, error)
+type MountHandler[T any] func(ctx context.Context, c Socket) (T, error)
 
 // UnmountHandler the func that is called by a handler to report that a connection
 // is closed. This is called on websocket close. Can be used to track number of
@@ -33,17 +33,17 @@ type ErrorHandler func(ctx context.Context, err error)
 
 // EventHandler a function to handle events, returns the data that should
 // be set to the socket after handling.
-type EventHandler func(context.Context, Socket, Params) (interface{}, error)
+type EventHandler[T any] func(context.Context, Socket, Params) (T, error)
 
 // SelfHandler a function to handle self events, returns the data that should
 // be set to the socket after handling.
-type SelfHandler func(context.Context, Socket, interface{}) (interface{}, error)
+type SelfHandler[T any] func(context.Context, Socket, interface{}) (T, error)
 
 // Handler methods.
 type Handler interface {
 	// HandleMount handles initial setup on first request, and then later when
 	// the socket first connets.
-	HandleMount(handler MountHandler)
+	HandleMount(handler MountHandler[any])
 	// HandleUnmount used to track webcocket disconnections.
 	HandleUnmount(handler UnmountHandler)
 	// HandleRender used to set the render method for the handler.
@@ -52,21 +52,21 @@ type Handler interface {
 	HandleError(handler ErrorHandler)
 	// HandleEvent handles an event that comes from the client. For example a click
 	// from `live-click="myevent"`.
-	HandleEvent(t string, handler EventHandler)
+	HandleEvent(t string, handler EventHandler[any])
 	// HandleSelf handles an event that comes from the server side socket. For example calling
 	// h.Self(socket, msg) will be handled here.
-	HandleSelf(t string, handler SelfHandler)
+	HandleSelf(t string, handler SelfHandler[any])
 	// HandleParams handles a URL query parameter change. This is useful for handling
 	// things like pagincation, or some filtering.
-	HandleParams(handler EventHandler)
+	HandleParams(handler EventHandler[any])
 
-	getMount() MountHandler
+	getMount() MountHandler[any]
 	getUnmount() UnmountHandler
 	getRender() RenderHandler
 	getError() ErrorHandler
-	getEvent(t string) (EventHandler, error)
-	getSelf(t string) (SelfHandler, error)
-	getParams() []EventHandler
+	getEvent(t string) (EventHandler[any], error)
+	getSelf(t string) (SelfHandler[any], error)
+	getParams() []EventHandler[any]
 }
 
 // BaseHandler.
@@ -74,7 +74,7 @@ type BaseHandler struct {
 	// mountHandler a user should provide the mount function. This is what
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
-	mountHandler MountHandler
+	mountHandler MountHandler[any]
 	// unmountHandler used to track webcocket disconnections.
 	unmountHandler UnmountHandler
 	// Render is called to generate the HTML of a Socket. It is defined
@@ -84,19 +84,19 @@ type BaseHandler struct {
 	// stages of the handler lifecycle.
 	errorHandler ErrorHandler
 	// eventHandlers the map of client event handlers.
-	eventHandlers map[string]EventHandler
+	eventHandlers map[string]EventHandler[any]
 	// selfHandlers the map of handler event handlers.
-	selfHandlers map[string]SelfHandler
+	selfHandlers map[string]SelfHandler[any]
 	// paramsHandlers a slice of handlers which respond to a change in URL parameters.
-	paramsHandlers []EventHandler
+	paramsHandlers []EventHandler[any]
 }
 
 // NewHandler sets up a base handler for live.
 func NewHandler(configs ...HandlerConfig) *BaseHandler {
 	h := &BaseHandler{
-		eventHandlers:  make(map[string]EventHandler),
-		selfHandlers:   make(map[string]SelfHandler),
-		paramsHandlers: []EventHandler{},
+		eventHandlers:  make(map[string]EventHandler[any]),
+		selfHandlers:   make(map[string]SelfHandler[any]),
+		paramsHandlers: []EventHandler[any]{},
 		mountHandler: func(ctx context.Context, s Socket) (interface{}, error) {
 			return nil, nil
 		},
@@ -122,7 +122,7 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 	return h
 }
 
-func (h *BaseHandler) HandleMount(f MountHandler) {
+func (h *BaseHandler) HandleMount(f MountHandler[any]) {
 	h.mountHandler = f
 }
 func (h *BaseHandler) HandleUnmount(f UnmountHandler) {
@@ -137,23 +137,23 @@ func (h *BaseHandler) HandleError(f ErrorHandler) {
 
 // HandleEvent handles an event that comes from the client. For example a click
 // from `live-click="myevent"`.
-func (h *BaseHandler) HandleEvent(t string, handler EventHandler) {
+func (h *BaseHandler) HandleEvent(t string, handler EventHandler[any]) {
 	h.eventHandlers[t] = handler
 }
 
 // HandleSelf handles an event that comes from the server side socket. For example calling
 // h.Self(socket, msg) will be handled here.
-func (h *BaseHandler) HandleSelf(t string, handler SelfHandler) {
+func (h *BaseHandler) HandleSelf(t string, handler SelfHandler[any]) {
 	h.selfHandlers[t] = handler
 }
 
 // HandleParams handles a URL query parameter change. This is useful for handling
 // things like pagincation, or some filtering.
-func (h *BaseHandler) HandleParams(handler EventHandler) {
+func (h *BaseHandler) HandleParams(handler EventHandler[any]) {
 	h.paramsHandlers = append(h.paramsHandlers, handler)
 }
 
-func (h *BaseHandler) getMount() MountHandler {
+func (h *BaseHandler) getMount() MountHandler[any] {
 	return h.mountHandler
 }
 func (h *BaseHandler) getUnmount() UnmountHandler {
@@ -165,20 +165,20 @@ func (h *BaseHandler) getRender() RenderHandler {
 func (h *BaseHandler) getError() ErrorHandler {
 	return h.errorHandler
 }
-func (h *BaseHandler) getEvent(t string) (EventHandler, error) {
+func (h *BaseHandler) getEvent(t string) (EventHandler[any], error) {
 	handler, ok := h.eventHandlers[t]
 	if !ok {
 		return nil, fmt.Errorf("no event handler for %s: %w", t, ErrNoEventHandler)
 	}
 	return handler, nil
 }
-func (h *BaseHandler) getSelf(t string) (SelfHandler, error) {
+func (h *BaseHandler) getSelf(t string) (SelfHandler[any], error) {
 	handler, ok := h.selfHandlers[t]
 	if !ok {
 		return nil, fmt.Errorf("no self handler for %s: %w", t, ErrNoEventHandler)
 	}
 	return handler, nil
 }
-func (h *BaseHandler) getParams() []EventHandler {
+func (h *BaseHandler) getParams() []EventHandler[any] {
 	return h.paramsHandlers
 }

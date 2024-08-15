@@ -26,13 +26,13 @@ type Engine interface {
 	// Mount a user should provide the mount function. This is what
 	// is called on initial GET request and later when the websocket connects.
 	// Data to render the handler should be fetched here and returned.
-	Mount() MountHandler
+	Mount() MountHandler[any]
 	// Unmount the func that is called by a handler to report that a connection
 	// is closed. This is called on websocket close. Can be used to track number of
 	// connected users.
 	Unmount() UnmountHandler
 	// Params called to handle any incoming paramters after mount.
-	Params() []EventHandler
+	Params() []EventHandler[any]
 	// Render is called to generate the HTML of a Socket. It is defined
 	// by default and will render any template provided.
 	Render() RenderHandler
@@ -109,7 +109,7 @@ func (e *BaseEngine) HandleBroadcast(f BroadcastHandler) {
 	e.broadcastHandler = f
 }
 
-func (e *BaseEngine) Mount() MountHandler {
+func (e *BaseEngine) Mount() MountHandler[any] {
 	return e.handler.getMount()
 }
 
@@ -117,7 +117,7 @@ func (e *BaseEngine) Unmount() UnmountHandler {
 	return e.handler.getUnmount()
 }
 
-func (e *BaseEngine) Params() []EventHandler {
+func (e *BaseEngine) Params() []EventHandler[any] {
 	return e.handler.getParams()
 }
 
