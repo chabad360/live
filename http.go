@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -60,7 +60,7 @@ func NewHttpHandler(store HttpSessionStore, handler Handler, configs ...EngineCo
 	}
 	for _, conf := range configs {
 		if err := conf(e); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config to engine: %w", err))
+			slog.Warn("could not apply config to engine", "error", err)
 		}
 	}
 	return e
@@ -228,7 +228,7 @@ func (h *HttpEngine) get(ctx context.Context, w http.ResponseWriter, r *http.Req
 			h.Error()(ctx, fmt.Errorf("session corrupted: %w", err))
 			return
 		} else {
-			log.Println(fmt.Errorf("session corrupted trying to repair: %w", err))
+			slog.WarnContext(ctx, fmt.Sprintf("session corrupted trying to repair: %s", err))
 			h.sessionStore.Clear(w, r)
 			q := r.URL.Query()
 			q.Set("live-repair", "1")
@@ -315,7 +315,7 @@ func (h *HttpEngine) serveWS(ctx context.Context, w http.ResponseWriter, r *http
 		case websocket.StatusGoingAway:
 			return
 		default:
-			log.Println(fmt.Errorf("ws closed with status (%d): %w", websocket.CloseStatus(err), err))
+			slog.DebugContext(ctx, fmt.Sprintf("ws closed with status (%d): %s", websocket.CloseStatus(err), err))
 			return
 		}
 	}
@@ -361,7 +361,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 					if err := h.CallParams(ctx, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
-							log.Println("event error", m, err)
+							slog.ErrorContext(ctx, "event error", "event", m, "error", err)
 						default:
 							eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
 						}
@@ -370,7 +370,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 					if err := h.CallEvent(ctx, m.T, sock, m); err != nil {
 						switch {
 						case errors.Is(err, ErrNoEventHandler):
-							log.Println("event error", m, err)
+							slog.ErrorContext(ctx, "event error", "event", m, "error", err)
 						default:
 							eventErrors <- ErrorEvent{Source: m, Err: err.Error()}
 						}
@@ -386,7 +386,7 @@ func (h *HttpEngine) _serveWS(ctx context.Context, r *http.Request, session Sess
 					internalErrors <- fmt.Errorf("socket send error: %w", err)
 				}
 			case websocket.MessageBinary:
-				log.Println("binary messages unhandled")
+				slog.WarnContext(ctx, "binary messages unhandled")
 			}
 		}
 		close(internalErrors)

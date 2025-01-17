@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -158,13 +158,13 @@ func (e *BaseEngine) handleEmittedEvent(ctx context.Context, s Socket, msg Event
 	defer panicCatcher()
 
 	if err := e.handleSelf(ctx, msg.T, s, msg); err != nil {
-		log.Println("server event error", err)
+		slog.ErrorContext(ctx, "server event error", "error", err, "message", msg, "socket", s.ID())
 	}
 	s.Lock()
 	defer s.Unlock()
 	render, err := RenderSocket(ctx, e, s)
 	if err != nil {
-		log.Println("socket handleView error", err)
+		slog.ErrorContext(ctx, "socket handleView error", "error", err, "message", msg, "socket", s.ID())
 	}
 	s.UpdateRender(render)
 }
@@ -195,7 +195,7 @@ func (e *BaseEngine) DeleteSocket(sock Socket) {
 	delete(e.socketMap, sock.ID())
 	err := e.Unmount()(sock)
 	if err != nil {
-		log.Println("socket unmount error", err)
+		slog.Error("socket unmount error", "error", err, "socket", sock.ID())
 	}
 }
 

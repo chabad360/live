@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 )
 
 var _ Handler = &BaseHandler{}
@@ -116,7 +116,7 @@ func NewHandler(configs ...HandlerConfig) *BaseHandler {
 	}
 	for _, conf := range configs {
 		if err := conf(h); err != nil {
-			log.Println("warning:", fmt.Errorf("could not apply config to handler: %w", err))
+			slog.Warn("could not apply config to handler", "error", err)
 		}
 	}
 	return h
