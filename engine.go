@@ -160,8 +160,6 @@ func (e *BaseEngine) handleEmittedEvent(ctx context.Context, s Socket, msg Event
 	if err := e.handleSelf(ctx, msg.T, s, msg); err != nil {
 		slog.ErrorContext(ctx, "server event error", "error", err, "message", msg, "socket", s.ID())
 	}
-	s.Lock()
-	defer s.Unlock()
 	render, err := RenderSocket(ctx, e, s)
 	if err != nil {
 		slog.ErrorContext(ctx, "socket handleView error", "error", err, "message", msg, "socket", s.ID())

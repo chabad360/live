@@ -110,8 +110,8 @@ type BaseSocket struct {
 	uploads       UploadContext
 
 	data   interface{}
-	dataMu sync.Mutex
-	selfMu sync.Mutex
+	dataMu sync.RWMutex
+	selfMu sync.RWMutex
 
 	// Child components.
 	children []Child
@@ -139,8 +139,8 @@ func (s *BaseSocket) ID() SocketID {
 // Assigns returns the data currently assigned to this
 // socket.
 func (s *BaseSocket) Assigns() interface{} {
-	s.dataMu.Lock()
-	defer s.dataMu.Unlock()
+	s.dataMu.RLock()
+	defer s.dataMu.RUnlock()
 	return s.data
 }
 
@@ -161,8 +161,8 @@ func (s *BaseSocket) Connected() bool {
 // handlers HandleSelf function.
 func (s *BaseSocket) Self(ctx context.Context, event string, data interface{}) error {
 	defer panicCatcher()
-	s.selfMu.Lock()
-	defer s.selfMu.Unlock()
+	//s.selfMu.Lock()
+	//defer s.selfMu.Unlock()
 	msg := Event{T: event, SelfData: data}
 	s.engine.self(ctx, s, msg)
 	return nil
@@ -260,11 +260,15 @@ func (s *BaseSocket) ClearUpload(config string, upload *Upload) {
 
 // LastRender returns the last render result of this socket.
 func (s *BaseSocket) LatestRender() *html.Node {
+	s.selfMu.RLock()
+	defer s.selfMu.RUnlock()
 	return s.currentRender
 }
 
 // UpdateRender replaces the last render result of this socket.
 func (s *BaseSocket) UpdateRender(render *html.Node) {
+	s.selfMu.Lock()
+	defer s.selfMu.Unlock()
 	s.currentRender = render
 }
 
@@ -289,7 +293,7 @@ func (s *BaseSocket) GetChildren() []Child {
 }
 
 // Lock the data mutex.
-func (s *BaseSocket) Lock() { s.selfMu.Lock() }
+func (s *BaseSocket) Lock() { s.dataMu.Lock() }
 
 // Unlock the data mutex.
-func (s *BaseSocket) Unlock() { s.selfMu.Unlock() }
+func (s *BaseSocket) Unlock() { s.dataMu.Unlock() }
